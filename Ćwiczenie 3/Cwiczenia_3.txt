@@ -1,0 +1,94 @@
+Zad. 1
+(base) misiek@MacBook-Pro-Micha ~ % shp2pgsql "/Users/misiek/Desktop/Bazy Danych Przestrzennych/Ćwiczenie 3/Cw3_Karlsruhe_Germany_Shapefile/T2019_KAR_GERMANY/T2019_KAR_BUILDINGS.shp" buildings2019 | psql -h localhost -p 5432 -U postgres -d cwiczenie_3
+
+SELECT buildings2019.*
+FROM buildings2019
+LEFT JOIN buildings2018 ON buildings2019.gid = buildings2018.gid
+WHERE buildings2018.gid IS NULL
+OR NOT ST_Equals(buildings2019.geom, buildings2018.geom);
+
+Zad.2
+(base) misiek@MacBook-Pro-Micha ~ % shp2pgsql "/Users/misiek/Desktop/Bazy Danych Przestrzennych/Ćwiczenie 3/Cw3_Karlsruhe_Germany_Shapefile/T2018_KAR_GERMANY/T2018_KAR_POI_TABLE.shp" poi2018 | psql -h localhost -p 5432 -U postgres -d cwiczenie_3
+
+(base) misiek@MacBook-Pro-Micha ~ % shp2pgsql "/Users/misiek/Desktop/Bazy Danych Przestrzennych/Ćwiczenie 3/Cw3_Karlsruhe_Germany_Shapefile/T2019_KAR_GERMANY/T2019_KAR_POI_TABLE.shp" poi2019 | psql -h localhost -p 5432 -U postgres -d cwiczenie_3
+
+CREATE TABLE points AS 
+SELECT poi2019.*
+FROM poi2019
+LEFT JOIN poi2018 ON poi2019.gid = poi2018.gid
+WHERE poi2018.gid IS NULL
+
+SELECT points.type AS typ, COUNT(*) AS poi_count
+FROM points
+WHERE EXISTS (
+    SELECT 1
+    FROM remont
+    WHERE ST_DWithin(points.geom, remont.geom, 500)
+)
+GROUP BY points.type;
+
+Zad. 3
+(base) misiek@MacBook-Pro-Micha ~ % shp2pgsql "/Users/misiek/Desktop/Bazy Danych Przestrzennych/Ćwiczenie 3/Cw3_Karlsruhe_Germany_Shapefile/T2019_KAR_GERMANY/T2019_KAR_STREETS.shp" streets2019 | psql -h localhost -p 5432 -U postgres -d cwiczenie_3
+
+CREATE TABLE streets_reprojected AS
+SELECT *
+FROM streets2019;
+
+UPDATE streets_reprojected
+SET geom = ST_SetSRID(geom, 31468);
+
+Zad. 4
+CREATE table input_points (
+    id SERIAL PRIMARY KEY,
+    geom geometry(POINT, 4326)
+);
+
+INSERT INTO input_points (geom)
+VALUES ('POINT(8.36093 49.03174)');
+
+INSERT INTO input_points (geom)
+VALUES ('POINT(8.39876 49.00644)');
+
+Zad. 5
+ALTER TABLE input_points
+ALTER COLUMN geom TYPE geometry(POINT, 31468) USING ST_Transform(geom, 31468);
+
+Zad. 6
+(base) misiek@MacBook-Pro-Micha ~ % shp2pgsql "/Users/misiek/Desktop/Bazy Danych Przestrzennych/Ćwiczenie 3/Cw3_Karlsruhe_Germany_Shapefile/T2018_KAR_GERMANY/T2018_KAR_STREET_NODE.shp" strnode2018 | psql -h localhost -p 5432 -U postgres -d cwiczenie_3
+
+(base) misiek@MacBook-Pro-Micha ~ % shp2pgsql "/Users/misiek/Desktop/Bazy Danych Przestrzennych/Ćwiczenie 3/Cw3_Karlsruhe_Germany_Shapefile/T2019_KAR_GERMANY/T2019_KAR_STREET_NODE.shp" strnode2019 | psql -h localhost -p 5432 -U postgres -d cwiczenie_3
+
+CREATE TABLE krzyzowki AS 
+SELECT ST_MakeLine(geom) AS geom FROM input_points; 
+UPDATE krzyzowki SET geom = ST_SetSRID(geom, 3068);
+UPDATE strnode2019 SET geom = ST_SetSRID(geom, 3068);
+SELECT DISTINCT strnode2019.node_id
+FROM krzyzowki, strnode2019
+WHERE ST_Intersects(ST_Buffer(krzyzowki.geom, 200), strnode2019.geom);
+
+Zad. 7
+(base) misiek@MacBook-Pro-Micha ~ % shp2pgsql "/Users/misiek/Desktop/Bazy Danych Przestrzennych/Ćwiczenie 3/Cw3_Karlsruhe_Germany_Shapefile/T2018_KAR_GERMANY/T2018_KAR_LAND_USE_A.shp" land_use2018 | psql -h localhost -p 5432 -U postgres -d cwiczenie_3
+
+(base) misiek@MacBook-Pro-Micha ~ % shp2pgsql "/Users/misiek/Desktop/Bazy Danych Przestrzennych/Ćwiczenie 3/Cw3_Karlsruhe_Germany_Shapefile/T2019_KAR_GERMANY/T2019_KAR_LAND_USE_A.shp" land_use2019 | psql -h localhost -p 5432 -U postgres -d cwiczenie_3
+
+SELECT COUNT(*) AS liczba_par
+FROM poi2019 AS sshops
+JOIN land_use2019 AS parks ON ST_Intersects(sshops.geom, ST_Buffer(parks.geom, 0.003))
+WHERE sshops.type = 'Sporting Goods Store';
+
+Zad. 8
+(base) misiek@MacBook-Pro-Micha ~ % shp2pgsql "/Users/misiek/Desktop/Bazy Danych Przestrzennych/Ćwiczenie 3/Cw3_Karlsruhe_Germany_Shapefile/T2018_KAR_GERMANY/T2018_KAR_WATER_LINES.shp" WATER_LINES2018 | psql -h localhost -p 5432 -U postgres -d cwiczenie_3
+
+(base) misiek@MacBook-Pro-Micha ~ % shp2pgsql "/Users/misiek/Desktop/Bazy Danych Przestrzennych/Ćwiczenie 3/Cw3_Karlsruhe_Germany_Shapefile/T2019_KAR_GERMANY/T2019_KAR_WATER_LINES.shp" WATER_LINES2019 | psql -h localhost -p 5432 -U postgres -d cwiczenie_3
+
+(base) misiek@MacBook-Pro-Micha ~ % shp2pgsql "/Users/misiek/Desktop/Bazy Danych Przestrzennych/Ćwiczenie 3/Cw3_Karlsruhe_Germany_Shapefile/T2018_KAR_GERMANY/T2018_KAR_RAILWAYS.shp" RAILWAYS2018 | psql -h localhost -p 5432 -U postgres -d cwiczenie_3
+
+(base) misiek@MacBook-Pro-Micha ~ % shp2pgsql "/Users/misiek/Desktop/Bazy Danych Przestrzennych/Ćwiczenie 3/Cw3_Karlsruhe_Germany_Shapefile/T2019_KAR_GERMANY/T2019_KAR_RAILWAYS.shp" RAILWAYS2019 | psql -h localhost -p 5432 -U postgres -d cwiczenie_3
+
+CREATE TABLE T2019_KAR_BRIDGES AS
+SELECT
+    water_lines2019.gid AS WATER_id,
+    railways2019.gid AS RAILWYA_id,
+    ST_Intersection(railways2019.geom, water_lines2019.geom) AS intersection_geom
+FROM water_lines2019, railways2019
+WHERE ST_Intersects(water_lines2019.geom, railways2019.geom);
